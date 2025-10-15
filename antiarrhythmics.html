@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Antiarrhythmic Drugs – Drag & Drop Match</title>
+<style>
+  :root{
+    --bg:#0b1220; --card:#121a2b; --ink:#e8eefc; --muted:#a7b1c9;
+    --ok:#2ecc71; --bad:#e74c3c; --accent:#5b8cff;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial;
+    background:radial-gradient(1200px 800px at 10% -10%, #15243f, #0b1220 60%);
+    color:var(--ink);
+    min-height:100vh; display:flex; flex-direction:column; gap:20px;
+  }
+  header{padding:18px 20px 0}
+  h1{margin:0 0 6px; font-size:clamp(20px,3.6vw,30px); font-weight:750; letter-spacing:.2px}
+  p.lead{margin:0; color:var(--muted)}
+  .wrap{display:grid; gap:18px; padding:10px 20px 28px}
+  @media(min-width:900px){ .wrap{ grid-template-columns:1fr 1fr; } }
+  .panel{
+    background:linear-gradient(180deg, #121a2b 0%, #0f1728 100%);
+    border:1px solid #1e2740; border-radius:16px; padding:16px; box-shadow:0 10px 30px rgba(0,0,0,.35);
+  }
+  .panel h2{margin:0 0 8px; font-size:18px; color:#c9d7ff; font-weight:700}
+  .list, .grid{display:grid; gap:10px}
+  .list{grid-auto-rows:minmax(48px,auto)}
+  .pill{
+    background:#0e1628; border:1px solid #223055; border-radius:12px; padding:10px 12px;
+    font-weight:650; cursor:grab; user-select:none; display:flex; align-items:center; justify-content:space-between;
+    transition:transform .08s ease, border-color .15s ease, background .15s ease;
+  }
+  .pill:active{transform:scale(.98); cursor:grabbing}
+  .pill.lock{cursor:default; background:#0f1b33; border-color:#28407a}
+  .desc{
+    border:1.5px dashed #2a3a62; border-radius:12px; padding:12px; min-height:56px;
+    display:grid; align-items:center; transition:border-color .15s ease, background .15s ease;
+    background:#0e1527;
+  }
+  .desc .slotTitle{color:#c9d7ff; font-weight:700; font-size:14px; margin-bottom:4px}
+  .desc .text{color:#dbe6ff; font-size:14px; line-height:1.25}
+  .desc.correct{border-color:var(--ok); background:rgba(46,204,113,.08)}
+  .desc.wrong{border-color:var(--bad); background:rgba(231,76,60,.08)}
+  .desc .accept{opacity:.65; font-style:italic; font-size:12px}
+  .footer{
+    display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between; margin-top:6px;
+  }
+  .btn{
+    appearance:none; border:none; border-radius:12px; padding:10px 14px; font-weight:700; cursor:pointer;
+    background:linear-gradient(180deg,#6b90ff,#4f73f1); color:white; box-shadow:0 6px 18px rgba(79,115,241,.35);
+  }
+  .btn.secondary{background:#192548; color:#d7e3ff; box-shadow:none; border:1px solid #2a3a62}
+  .score{color:#cfe0ff; font-weight:700}
+  .tiny{font-size:12px; color:#9fb0d6}
+  .tag{display:inline-block; padding:.2em .55em; border:1px solid #2a3a62; border-radius:999px; font-size:12px; color:#b9c9f5}
+  .bucket{display:flex; gap:8px; flex-wrap:wrap; margin-top:6px}
+</style>
+</head>
+<body>
+  <header>
+    <h1>Antiarrhythmic Drugs – Drag & Drop Matching</h1>
+    <p class="lead">Drag each <b>drug</b> (left) onto its matching <b>description</b> (right). Items are shuffled on load.</p>
+  </header>
+
+  <div class="wrap">
+    <section class="panel">
+      <h2>Drugs</h2>
+      <div id="drugList" class="list" aria-label="Draggable drug names"></div>
+      <div class="footer">
+        <div class="bucket" id="legend"></div>
+        <div>
+          <button id="shuffle" class="btn">Shuffle</button>
+          <button id="reset" class="btn secondary">Reset</button>
+        </div>
+      </div>
+      <p class="tiny">Source: CPR‑2 “Drugs Used in Cardiac Arrhythmias” (Konorev) PDF uploaded in this chat.</p>
+    </section>
+
+    <section class="panel">
+      <h2>Descriptions</h2>
+      <div id="descGrid" class="grid"></div>
+      <div class="footer">
+        <div class="score" id="scoreArea">0 / 18 correct</div>
+      </div>
+    </section>
+  </div>
+
+<script>
+const ITEMS = [
+  // Class 1A – Sodium channel blockers (also block K+ → ↑APD/QT; slow phase 0 → ↑QRS)
+  {id:"quinidine", label:"Quinidine", group:"Class 1A",
+   desc:"Class 1A Na⁺ channel blocker (also blocks K⁺): slows conduction and prolongs APD/QT; antimuscarinic effect may ↑ AV conduction; rarely used due to adverse effects."},
+  {id:"procainamide", label:"Procainamide", group:"Class 1A",
+   desc:"Class 1A Na⁺/K⁺ effects: slows conduction; depresses SA/AV nodes; ganglion‑blocking → ↓PVR (hypotension). Uses: VT, post‑MI arrhythmias (not first‑line). AEs: QT prolongation/torsades, drug‑induced lupus."},
+  {id:"disopyramide", label:"Disopyramide", group:"Class 1A",
+   desc:"Class 1A Na⁺/K⁺ effects with strong antimuscarinic action; use in recurrent ventricular arrhythmias. AEs: QT prolongation/torsades, negative inotropy (may precipitate HF), anticholinergic symptoms."},
+
+  // Class 1B – Sodium channel blockers (bind inactivated channels; work in depolarized tissue; may shorten AP; no QT prolongation)
+  {id:"lidocaine", label:"Lidocaine", group:"Class 1B",
+   desc:"Class 1B Na⁺ channel blocker (binds inactivated channels in ischemic tissue); IV only (first‑pass). Use: acute ischemic VT. AEs: neurologic symptoms; hypotension in HF is possible."},
+  {id:"mexiletine", label:"Mexiletine", group:"Class 1B",
+   desc:"Oral Class 1B (lidocaine congener): ventricular arrhythmias; also neuropathic pain. AEs: tremor, blurred vision, nausea, lethargy."},
+
+  // Class 1C – Sodium channel blockers (marked conduction slowing; ↑QRS; minimal APD/QT effect)
+  {id:"flecainide", label:"Flecainide", group:"Class 1C",
+   desc:"Class 1C Na⁺ blocker (± some K⁺ block): strong conduction slowing (↑QRS), minimal APD/QT change. Use: SV arrhythmias in structurally normal hearts; life‑threatening VT. AEs: proarrhythmia in prior MI/ventricular disease (CAST)."},
+  {id:"propafenone", label:"Propafenone", group:"Class 1C",
+   desc:"Class 1C Na⁺ blocker with weak β‑block; use in SV arrhythmias without structural disease. AEs: exacerbation of ventricular arrhythmias."},
+
+  // Class 2 – Beta blockers
+  {id:"esmolol", label:"Esmolol", group:"Class 2 (β‑blocker)",
+   desc:"Short‑acting β₁‑blocker (t½ ~10 min, IV infusion). Decreases SA rate and slows AV conduction. Uses: SV arrhythmias, thyrotoxicosis, ischemia/MI perioperative arrhythmias."},
+  {id:"propranolol", label:"Propranolol", group:"Class 2 (β‑blocker)",
+   desc:"β‑blocker: ↓ SA automaticity (↑RR) and slows AV conduction (↑PR). Uses: stress/thyroid‑related arrhythmias, AF/flutter, PSVT, post‑MI arrhythmias (↓mortality)."},
+
+  // Class 3 – Potassium channel blockers
+  {id:"amiodarone", label:"Amiodarone", group:"Class 3",
+   desc:"Blocks K⁺ (↑APD/QT) plus Na⁺ (inactivated), Ca²⁺, and has anti‑adrenergic effects; slows AV conduction and HR. Uses: recurrent VT, AF. AEs: brady/AV block, pulmonary fibrosis, hepatitis, blue‑gray skin, corneal/optic effects, thyroid dysfunction; TdP risk low."},
+  {id:"sotalol", label:"Sotalol", group:"Class 3 + β‑blocker",
+   desc:"Non‑selective β‑blocker with Class 3 action (↑APD/QT). Uses: life‑threatening VT; maintain sinus rhythm in AF. AEs: ↓ cardiac function; torsades."},
+  {id:"dofetilide", label:"Dofetilide", group:"Class 3",
+   desc:"Blocks rapid delayed rectifier K⁺ current. Uses: convert and maintain sinus rhythm in AF. AEs: QT prolongation → ventricular arrhythmias (torsades)."},
+  {id:"ibutilide", label:"Ibutilide", group:"Class 3",
+   desc:"Blocks rapid delayed rectifier K⁺ current. Uses: chemical cardioversion of AF/AFlutter. AEs: QT prolongation → ventricular arrhythmias."},
+
+  // Class 4 – Cardioactive CCBs
+  {id:"verapamil", label:"Verapamil", group:"Class 4 (cardioactive CCB)",
+   desc:"L‑type Ca²⁺ channel blocker acting on nodal tissue: ↓ SA rate and prolongs AV conduction/refractory period. Uses: terminate/prevent PSVT; rate control in AF/flutter. AEs: negative inotropy, AV block, bradyarrhythmias, hypotension; constipation."},
+  {id:"diltiazem", label:"Diltiazem", group:"Class 4 (cardioactive CCB)",
+   desc:"L‑type Ca²⁺ channel blocker (cardioactive): slows SA/AV nodal activity. Uses: PSVT termination/prevention; AF/flutter rate control. AEs: negative inotropy, AV block, bradyarrhythmias, hypotension."},
+
+  // Miscellaneous
+  {id:"adenosine", label:"Adenosine", group:"Miscellaneous",
+   desc:"A1 receptor agonist (Gi): ↑K⁺ current, ↓Ca²⁺ and ↓Funny currents → nodal hyperpolarization; marked AV nodal block. Use: rapid IV conversion of PSVT. AEs: SOB, bronchoconstriction, chest burning, AV block, hypotension."},
+  {id:"ivabradine", label:"Ivabradine", group:"Miscellaneous",
+   desc:"Selective If (Funny) current inhibitor: ↓ slope of phase‑4 depolarization in SA node → lowers HR without affecting contractility/BP. Uses: HFrEF with high HR; (also stable angina, POTS). AE: visual disturbances."}
+];
+
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const shuffle = a => { for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; };
+let picked = null;
+
+function build() {
+  const drugList = $("#drugList");
+  const descGrid = $("#descGrid");
+  drugList.innerHTML = "";
+  descGrid.innerHTML = "";
+
+  const drugs = shuffle([...ITEMS]);
+  const targets = shuffle([...ITEMS]);
+
+  const groups = [...new Set(ITEMS.map(i=>i.group))];
+  $("#legend").innerHTML = groups.map(g=>`<span class="tag">${g}</span>`).join("");
+
+  drugs.forEach(d=>{
+    const el = document.createElement("div");
+    el.className = "pill";
+    el.textContent = d.label;
+    el.dataset.id = d.id;
+    el.setAttribute("draggable","true");
+    el.title = d.group;
+    el.addEventListener("dragstart", e=> e.dataTransfer.setData("text/plain", d.id));
+    el.addEventListener("click", ()=>{ if(!el.classList.contains("lock")) picked = d.id; });
+    drugList.appendChild(el);
+  });
+
+  targets.forEach(t=>{
+    const box = document.createElement("div");
+    box.className = "desc";
+    box.dataset.id = t.id;
+    box.innerHTML = `<div class="slotTitle">Description</div>
+                     <div class="text">${t.desc}</div>
+                     <div class="accept">Drop the matching drug here</div>`;
+    box.addEventListener("dragover", e=> e.preventDefault());
+    box.addEventListener("drop", e=>{ e.preventDefault(); handleDrop(e.dataTransfer.getData("text/plain"), box); });
+    box.addEventListener("click", ()=>{ if(picked) handleDrop(picked, box); });
+    descGrid.appendChild(box);
+  });
+
+  updateScore();
+}
+
+function handleDrop(id, box){
+  if(!id || box.classList.contains("correct")) return;
+  const pill = $(`.pill[data-id="${id}"]`);
+  if(!pill || pill.classList.contains("lock")) return;
+  if(id === box.dataset.id){
+    box.classList.remove("wrong");
+    box.classList.add("correct");
+    box.querySelector(".accept").innerHTML = `✅ Matched: <b>${pill.textContent}</b>`;
+    pill.classList.add("lock");
+    pill.setAttribute("draggable","false");
+    pill.style.opacity = .55;
+    pill.style.cursor = "default";
+  } else {
+    box.classList.add("wrong");
+    box.querySelector(".accept").textContent = "❌ Not a match. Try again.";
+    setTimeout(()=>{ box.classList.remove("wrong"); box.querySelector(".accept").textContent="Drop the matching drug here"; }, 700);
+  }
+  picked = null;
+  updateScore();
+}
+
+function updateScore(){
+  const correct = $$(".desc.correct").length;
+  $("#scoreArea").textContent = `${correct} / ${ITEMS.length} correct`;
+  if(correct === ITEMS.length){
+    $("#scoreArea").textContent += " – All matched!";
+  }
+}
+
+$("#shuffle").addEventListener("click", build);
+$("#reset").addEventListener("click", ()=>{
+  $$(".pill").forEach(p=>{p.classList.remove("lock"); p.style.opacity=1; p.style.cursor="grab"; p.setAttribute("draggable","true"); });
+  $$(".desc").forEach(d=>{ d.classList.remove("correct","wrong"); d.querySelector(".accept").textContent="Drop the matching drug here"; });
+  updateScore();
+});
+
+build();
+</script>
+</body>
+</html>
